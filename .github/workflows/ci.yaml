@@ -1,0 +1,40 @@
+name: "Continuous integration"
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  ci:
+    name: "⚙️  Rust CI"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "🆙 Setup Rust toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy,rustfmt,rust-docs
+
+      - name: "📥 Clone Repository"
+        uses: actions/checkout@v4
+
+      - name: "✅ Cargo test"
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+      - name: "🧹 Cargo fmt --check"
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --check
+
+      - name: "📎 Cargo clippy"
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+
+      - name: "📝 Cargo doc"
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc

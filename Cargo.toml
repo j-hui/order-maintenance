@@ -1,0 +1,12 @@
+[package]
+name = "order-maintenance"
+version = "0.1.0"
+edition = "2021"
+authors = ["John Hui <j-hui@cs.columbia.edu>"]
+license = "MIT"
+keywords = ["order", "no_std"]
+description = "Totally-ordered priorities for the order maintainence problem"
+repository = "https://github.com/j-hui/order-maintenance"
+
+[dependencies]
+slotmap = { version = "1.0.6", default-features = false }

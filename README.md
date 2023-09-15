@@ -1,5 +1,7 @@
 # Order Maintenance
 
+[![Continuous integration](https://github.com/j-hui/order-maintenance/actions/workflows/ci.yaml/badge.svg)](https://github.com/j-hui/order-maintenance/actions/workflows/ci.yaml)
+
 Totally-ordered priorities for the order maintenance problem.
 
 Current implementation uses Dietz & Sleator (1987)'s tag-range relabeling
@@ -11,7 +13,9 @@ available.
 ## Opportunities for Optimization
 
 This crate is still in its infancy and remains to be thoroughly tested,
-benchmarked, and optimized. Here are some premature ideas for potential optimization:
+benchmarked, or optimized.
+
+Here are some premature ideas for potential optimization:
 
 - Use Bender et al. (2002)'s list-range relabeling approach instead of
   tag-range relabeling; list-range relabling favors bitwise operations over

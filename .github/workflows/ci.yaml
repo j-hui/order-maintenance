@@ -1,4 +1,4 @@
-name: "Continuous integration"
+name: "CI"
 on:
   pull_request:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   ci:
-    name: "⚙️  Rust CI"
+    name: "⚙️  Rust tests and lints"
     runs-on: ubuntu-latest
     steps:
       - name: "🆙 Setup Rust toolchain"

@@ -58,11 +58,9 @@ impl Arena {
             ref_count: RefCell::new(1),
         });
 
-        unsafe {
-            let base_prio = priorities.get_unchecked(base);
-            base_prio.set_next(first);
-            base_prio.set_prev(first);
-        }
+        let base_prio = priorities.get(base).expect("base should have just been inserted");
+        base_prio.set_next(first);
+        base_prio.set_prev(first);
 
         (
             Self {
@@ -465,8 +463,8 @@ mod tests {
             v.push(v[v.len() - 1].insert());
         }
 
-        for i in 0..v.len() - 1{
-            assert!(v[i] < v[i+1])
+        for i in 0..v.len() - 1 {
+            assert!(v[i] < v[i + 1])
         }
     }
 }

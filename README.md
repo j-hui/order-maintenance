@@ -2,6 +2,8 @@
 
 [![Continuous integration](https://github.com/j-hui/order-maintenance/actions/workflows/ci.yaml/badge.svg)](https://github.com/j-hui/order-maintenance/actions/workflows/ci.yaml)
 
+**This crate is still under development and may contain nasty bugs!**
+
 Totally-ordered priorities for the order maintenance problem.
 
 Current implementation uses Dietz & Sleator (1987)'s tag-range relabeling

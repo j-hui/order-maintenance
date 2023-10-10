@@ -3,6 +3,7 @@
 //! See documentation for [`Priority`].
 use slotmap::{self, HopSlotMap};
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::rc::Rc;
 
 slotmap::new_key_type! {
@@ -28,6 +29,9 @@ struct Arena {
 
     /// Internal store of priorities, indexed by [`PriorityRef`].
     priorities: HopSlotMap<PriorityRef, PriorityInner>,
+
+    /// Key to the base priority, which should never be deleted (unless the arena is dropped).
+    base: PriorityRef,
 }
 
 impl Arena {
@@ -35,13 +39,39 @@ impl Arena {
     const BASE: usize = 0;
 
     /// The total number of labels that can be allocated in this arena.
-    const SIZE: usize = 1 << (usize::BITS - 1);
+    // const SIZE: usize = 1 << (usize::BITS - 1);
 
-    fn new() -> Self {
-        Self {
-            total: 0,
-            priorities: HopSlotMap::with_key(),
+    fn new_with_priority() -> (Self, PriorityRef) {
+        let mut priorities = HopSlotMap::with_key();
+
+        let base = priorities.insert_with_key(|k| PriorityInner {
+            next: RefCell::new(k),
+            prev: RefCell::new(k),
+            label: RefCell::new(Arena::BASE),
+            ref_count: RefCell::new(1),
+        });
+
+        let first = priorities.insert(PriorityInner {
+            next: RefCell::new(base),
+            prev: RefCell::new(base),
+            label: RefCell::new(usize::MAX / 2),
+            ref_count: RefCell::new(1),
+        });
+
+        unsafe {
+            let base_prio = priorities.get_unchecked(base);
+            base_prio.set_next(first);
+            base_prio.set_prev(first);
         }
+
+        (
+            Self {
+                total: 1,
+                priorities,
+                base,
+            },
+            first,
+        )
     }
 
     /// Insert a new priority into priorities store, constructing that priority using the given
@@ -60,12 +90,6 @@ impl Arena {
     /// Retrieve a reference to a priority from the priorities store using a key.
     fn get(&self, key: PriorityRef) -> &PriorityInner {
         self.priorities.get(key).unwrap()
-    }
-
-    /// Retrieve the number of priorities allocated so far.
-    fn total(&self) -> usize {
-        // Note: this could probably be self.priorities.len()
-        self.total
     }
 }
 
@@ -111,26 +135,12 @@ impl PriorityInner {
         *self.label.borrow_mut() = label;
     }
 
-    /// Whether this is the base priority.
-    fn is_base(&self) -> bool {
-        self.label() == Arena::BASE
-    }
-
     /// Compute the "weight" of some `other` priority, relative to this.
     ///
     /// The math used for this computation is not entirely intuitive, but is discussed in detail in
     /// Dietz & Sleator and Bender et al.'s papers on the order maintenance problem.
-    fn weight(&self, arena: &Arena, other: &Self, i: usize) -> usize {
-        if i >= arena.total() {
-            Arena::SIZE
-        } else {
-            other.label().wrapping_sub(self.label()) % Arena::SIZE
-        }
-    }
-
-    /// Retrieve numeric value of label that is used for [`PartialEq`] comparisons.
-    fn relative(&self) -> usize {
-        self.label().wrapping_sub(Arena::BASE) % Arena::SIZE
+    fn weight(&self, other: &Self) -> usize {
+        other.label().wrapping_sub(self.label())
     }
 
     /// Increment the reference count.
@@ -225,13 +235,7 @@ impl Priority {
     /// a [`Priority`] that can be compared to some existing priority, use [`Priority::insert()`].
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let mut arena = Arena::new();
-        let key = arena.insert(|new_key| PriorityInner {
-            next: RefCell::new(new_key),
-            prev: RefCell::new(new_key),
-            label: RefCell::new(Arena::BASE),
-            ref_count: RefCell::new(1),
-        });
+        let (arena, key) = Arena::new_with_priority();
         Self {
             arena: Rc::new(RefCell::new(arena)),
             this: key,
@@ -250,27 +254,32 @@ impl Priority {
             let (count, weight) = {
                 let mut count = 1;
                 let mut prio = this.next().as_ref(arena);
-                while this.weight(arena, prio, count) <= count ^ 2 {
+                while this.weight(prio) != 0 && this.weight(prio) <= count ^ 2 {
                     prio = prio.next().as_ref(arena);
                     count += 1;
                 }
-                (count, this.weight(arena, prio, count))
+                (count, this.weight(prio))
             };
 
             // Now, adjust labels of those nodes
             let mut prio = this.next().as_ref(arena);
             for k in 1..count {
-                prio.set_label(((weight * count / k).wrapping_add(this.label())) % Arena::SIZE);
+                // if weight == 0, then it should actually encode usize::MAX + 1.
+                let weight_k = if weight == 0 {
+                    // Since we can't actually represent usize::MAX + 1, we just multiply it by
+                    // ((usize::MAX + 1) / 2) AKA (1 << (usize::BITS / 2)), and then multiply by 2.
+                    k.wrapping_mul(1 << (usize::BITS / 2)).wrapping_mul(2)
+                } else {
+                    k.wrapping_mul(weight)
+                };
+                prio.set_label((weight_k / count).wrapping_add(this.label()));
+
                 prio = prio.next().as_ref(arena);
             }
 
             // Compute new priority fields
-            let new_label = if this.next().as_ref(arena).is_base() {
-                Arena::SIZE
-            } else {
-                this.next().as_ref(arena).relative()
-            };
-            let new_label = (this.label().wrapping_add(new_label)) / 2;
+            let new_label = // New label is half-way between this and next
+                this.label().wrapping_add(this.next().as_ref(arena).label().wrapping_sub(this.label()) / 2);
             let new_prev = self.this;
             let new_next = this.next();
 
@@ -309,6 +318,15 @@ impl Priority {
     fn arena_mut<T>(&self, f: impl FnOnce(&mut Arena) -> T) -> T {
         f(&mut self.arena.borrow_mut())
     }
+
+    fn relative(&self) -> usize {
+        self.arena(|a| {
+            self.this
+                .as_ref(a)
+                .label()
+                .wrapping_sub(a.base.as_ref(a).label())
+        })
+    }
 }
 
 impl Clone for Priority {
@@ -332,17 +350,16 @@ impl PartialEq for Priority {
 impl Eq for Priority {}
 
 impl PartialOrd for Priority {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if !Rc::ptr_eq(&self.arena, &other.arena) {
             return None;
         }
 
-        self.arena(|a| {
-            self.this
-                .as_ref(a)
-                .relative()
-                .partial_cmp(&other.this.as_ref(a).relative())
-        })
+        if self.this == other.this {
+            return Some(Ordering::Equal);
+        }
+
+        self.relative().partial_cmp(&other.relative())
     }
 }
 
@@ -414,7 +431,7 @@ mod tests {
             let _p3 = p1.insert();
             p1.arena.clone()
         };
-        assert!(a.borrow().priorities.is_empty());
+        assert!(a.borrow().priorities.len() == 1);
     }
 
     #[test]
@@ -437,6 +454,19 @@ mod tests {
             assert!(p1 < p3);
             p1.arena.clone()
         };
-        assert!(a.borrow().priorities.is_empty());
+        assert!(a.borrow().priorities.len() == 1);
+    }
+
+    #[test]
+    fn horde() {
+        let mut v = vec![Priority::new()];
+
+        for _ in 0..1024 {
+            v.push(v[v.len() - 1].insert());
+        }
+
+        for i in 0..v.len() - 1{
+            assert!(v[i] < v[i+1])
+        }
     }
 }

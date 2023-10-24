@@ -313,18 +313,6 @@ impl Priority {
             let this = self.this.as_ref(arena);
             let next = this.next().as_ref(arena);
 
-            // print the list
-            // let mut node = this;
-            // loop {
-            //     print!("{}-", node.label());
-            //     node = node.next().as_ref(arena);
-            //     if node.label() == this.label() {
-            //         break;
-            //     }
-            // }
-            // println!();
-            // println!();
-
             let mut this_lab = this.label();
             let mut next_lab = if next.label() == Arena::BASE {
                 usize::MAX
@@ -365,7 +353,7 @@ impl Priority {
                 // So we want to find the smallest subrange so that count/2^i <= 1/T^i
                 // or count <= (2/T)^i = CAPA[t_index][i]
 
-                while range_size <= usize::MAX {
+                while range_size < usize::MAX {
                     while begin.label() >= min_lab {
                         range_count += 1;
                         if begin.label() == Arena::BASE {
@@ -392,19 +380,19 @@ impl Priority {
                         loop {
                             begin.set_label(new_label);
                             begin = begin.next().as_ref(arena);
+                            if begin.label() == end.label() {
+                                break;
+                            }
                             new_label += gap;
                             if rem > 0 {
                                 new_label += 1;
                                 rem -= 1;
                             }
-                            if begin.label() == end.label() {
-                                break;
-                            }
                         }
 
                         break;
                     } else {
-                        if range_size >= usize::MAX {
+                        if range_size == usize::MAX {
                             panic!("Too many priorities were inserted, the root is overflowing!");
                         }
                         i += 1;
@@ -417,8 +405,8 @@ impl Priority {
                 }
             }
 
-            let mut this_lab = this.label();
-            let mut next_lab = if next.label() == Arena::BASE {
+            this_lab = this.label();
+            next_lab = if next.label() == Arena::BASE {
                 usize::MAX
             } else {
                 next.label()
@@ -535,6 +523,8 @@ impl Drop for Priority {
 mod tests {
     use super::*;
 
+    const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
+
     #[test]
     fn drop_single() {
         let _p = Priority::new();
@@ -543,15 +533,15 @@ mod tests {
     #[test]
     fn compare_two() {
         let p1 = Priority::new();
-        let p2 = p1.insert();
+        let p2 = INSERT_FN(&p1);
         assert!(p1 < p2);
     }
 
     #[test]
     fn insertion() {
         let p1 = Priority::new();
-        let p3 = p1.insert();
-        let p2 = p1.insert();
+        let p3 = INSERT_FN(&p1);
+        let p2 = INSERT_FN(&p1);
 
         assert!(p1 < p2);
         assert!(p2 < p3);
@@ -561,8 +551,8 @@ mod tests {
     #[test]
     fn transitive() {
         let p1 = Priority::new();
-        let p2 = p1.insert();
-        let p3 = p2.insert();
+        let p2 = INSERT_FN(&p1);
+        let p3 = INSERT_FN(&p2);
 
         assert!(p1 < p2);
         assert!(p2 < p3);
@@ -573,8 +563,8 @@ mod tests {
     fn no_leak() {
         let a = {
             let p1 = Priority::new();
-            let _p2 = p1.insert();
-            let _p3 = p1.insert();
+            let _p2 = INSERT_FN(&p1);
+            let _p3 = INSERT_FN(&p1);
             p1.arena.clone()
         };
         assert!(a.borrow().priorities.len() == 1);
@@ -584,8 +574,8 @@ mod tests {
     fn can_clone() {
         let a = {
             let p1 = Priority::new();
-            let p2 = p1.insert();
-            let p3 = p2.insert();
+            let p2 = INSERT_FN(&p1);
+            let p3 = INSERT_FN(&p2);
 
             {
                 let p1 = p1.clone();
@@ -607,7 +597,7 @@ mod tests {
     fn insert_100_end() {
         let mut ps = vec![Priority::new()];
         for _ in 0..99 {
-            let p = ps.last().unwrap().insert();
+            let p = INSERT_FN(ps.last().unwrap());
             ps.push(p);
         }
 
@@ -624,7 +614,7 @@ mod tests {
         let p0 = Priority::new();
         let mut ps = vec![p0.clone()];
         for _ in 0..99 {
-            let p = p0.insert();
+            let p = INSERT_FN(&p0);
             ps.push(p);
         }
 
@@ -645,10 +635,10 @@ mod tests {
         let mut ps = vec![Priority::new()];
         for i in 0..199 {
             if i % 2 == 0 {
-                let p = ps.last().unwrap().insert();
+                let p = INSERT_FN(ps.last().unwrap());
                 ps.push(p);
             } else {
-                let p = ps.first().unwrap().insert();
+                let p = INSERT_FN(ps.first().unwrap());
                 ps.insert(1, p);
             }
         }
@@ -665,7 +655,7 @@ mod tests {
     fn insert_10k_end() {
         let mut ps = vec![Priority::new()];
         for _ in 0..9_999 {
-            let p = ps.last().unwrap().insert();
+            let p = INSERT_FN(ps.last().unwrap());
             ps.push(p);
         }
 
@@ -680,7 +670,7 @@ mod tests {
         let p0 = Priority::new();
         let mut ps = vec![p0.clone()];
         for _ in 0..9_999 {
-            let p = p0.insert();
+            let p = INSERT_FN(&p0);
             ps.push(p);
         }
 

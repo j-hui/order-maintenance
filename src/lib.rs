@@ -523,8 +523,8 @@ impl Drop for Priority {
 mod tests {
     use super::*;
 
-    const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
-    // const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
+    // const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
+    const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
 
     #[test]
     fn drop_single() {

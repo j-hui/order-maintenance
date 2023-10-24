@@ -6,6 +6,9 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 
+mod capas;
+use capas::CAPAS;
+
 slotmap::new_key_type! {
     /// Reference to a [`Priority`], used as a key to [`Arena::priorities`].
     struct PriorityRef;
@@ -58,7 +61,9 @@ impl Arena {
             ref_count: RefCell::new(1),
         });
 
-        let base_prio = priorities.get(base).expect("base should have just been inserted");
+        let base_prio = priorities
+            .get(base)
+            .expect("base should have just been inserted");
         base_prio.set_next(first);
         base_prio.set_prev(first);
 
@@ -303,6 +308,149 @@ impl Priority {
         }
     }
 
+    pub fn insert_tag_range(&self) -> Self {
+        let key = self.arena_mut(|arena| {
+            let this = self.this.as_ref(arena);
+            let next = this.next().as_ref(arena);
+
+            // print the list
+            // let mut node = this;
+            // loop {
+            //     print!("{}-", node.label());
+            //     node = node.next().as_ref(arena);
+            //     if node.label() == this.label() {
+            //         break;
+            //     }
+            // }
+            // println!();
+            // println!();
+
+            let mut this_lab = this.label();
+            let mut next_lab = if next.label() == Arena::BASE {
+                usize::MAX
+            } else {
+                next.label()
+            };
+
+            if this_lab + 1 == next_lab {
+                // Relabeling
+
+                // find the correct list of capacities depending onnumber of priorities already inserted
+                let capas_len = CAPAS.len();
+                let mut t_index = capas_len;
+                for (t_index_iter, _) in CAPAS.iter().enumerate().rev() {
+                    if arena.total + 1 < CAPAS[t_index_iter][63] {
+                        t_index = t_index_iter;
+                        break;
+                    }
+                }
+                if t_index >= capas_len {
+                    panic!("Too many priorities were inserted");
+                }
+
+                let mut i = 0;
+                // let mut t_i = 1.; // idea: precompute list of t_is
+                let mut range_size = 1;
+                let mut range_count = 1;
+                let mut internal_node_tag = this_lab;
+
+                // the subrange is [min_lab, max_lab)
+                let mut min_lab = internal_node_tag;
+                let mut max_lab = internal_node_tag + 1;
+
+                let mut begin = this;
+                let mut end = this.next().as_ref(arena);
+
+                // The density threshold is 1/T^i
+                // So we want to find the smallest subrange so that count/2^i <= 1/T^i
+                // or count <= (2/T)^i = CAPA[t_index][i]
+
+                while range_size <= usize::MAX {
+                    while begin.label() >= min_lab {
+                        range_count += 1;
+                        if begin.label() == Arena::BASE {
+                            begin = begin.prev().as_ref(arena);
+                            break;
+                        }
+                        begin = begin.prev().as_ref(arena);
+                    }
+                    // backtrack one step (this bound is inclusive)
+                    begin = begin.next().as_ref(arena);
+                    range_count -= 1;
+
+                    while end.label() < max_lab && end.label() != Arena::BASE {
+                        range_count += 1;
+                        end = end.next().as_ref(arena);
+                    }
+
+                    if range_count < CAPAS[t_index][i] {
+                        // Range found, relabel
+                        let gap = range_size / range_count;
+                        let mut rem = range_size % range_count; // note: the reminder is spread out
+                        let mut new_label = min_lab;
+
+                        loop {
+                            begin.set_label(new_label);
+                            begin = begin.next().as_ref(arena);
+                            new_label += gap;
+                            if rem > 0 {
+                                new_label += 1;
+                                rem -= 1;
+                            }
+                            if begin.label() == end.label() {
+                                break;
+                            }
+                        }
+
+                        break;
+                    } else {
+                        if range_size >= usize::MAX {
+                            panic!("Too many priorities were inserted, the root is overflowing!");
+                        }
+                        i += 1;
+                        // t_i *= PriorityTagRange::T;
+                        range_size *= 2;
+                        internal_node_tag >>= 1;
+                        min_lab = internal_node_tag << i;
+                        max_lab = (internal_node_tag + 1) << i;
+                    }
+                }
+            }
+
+            let mut this_lab = this.label();
+            let mut next_lab = if next.label() == Arena::BASE {
+                usize::MAX
+            } else {
+                next.label()
+            };
+
+            let new_label = (this_lab & next_lab) + ((this_lab ^ next_lab) >> 1);
+
+            let new_prev = self.this;
+            let new_next = this.next();
+
+            // Allocate new node
+            let new_key = arena.insert(|_| PriorityInner {
+                next: RefCell::new(new_next),
+                prev: RefCell::new(new_prev),
+                label: RefCell::new(new_label),
+                ref_count: RefCell::new(1),
+            });
+
+            // Fix up pointers to point to newly allocated node
+            let this = self.this.as_ref(arena); // appease borrow checker (:
+            this.next().as_ref(arena).set_prev(new_key); // self_inner.next.prev = new
+            this.set_next(new_key); // self_inner.next = new
+
+            new_key
+        });
+
+        Self {
+            arena: self.arena.clone(),
+            this: key,
+        }
+    }
+
     /// Execute callback with shared reference to arena.
     ///
     /// Ugly, but useful for not exposing [`RefCell`] or [`std::cell::Ref`].
@@ -456,15 +604,88 @@ mod tests {
     }
 
     #[test]
-    fn horde() {
-        let mut v = vec![Priority::new()];
-
-        for _ in 0..1024 {
-            v.push(v[v.len() - 1].insert());
+    fn insert_100_end() {
+        let mut ps = vec![Priority::new()];
+        for _ in 0..99 {
+            let p = ps.last().unwrap().insert();
+            ps.push(p);
         }
 
-        for i in 0..v.len() - 1 {
-            assert!(v[i] < v[i + 1])
+        // Compare all priorities to each other
+        for i in 0..ps.len() {
+            for j in i + 1..ps.len() {
+                assert!(ps[i] < ps[j], "ps[{}] < ps[{}]", i, j);
+            }
+        }
+    }
+
+    #[test]
+    fn insert_100_begin() {
+        let p0 = Priority::new();
+        let mut ps = vec![p0.clone()];
+        for _ in 0..99 {
+            let p = p0.insert();
+            ps.push(p);
+        }
+
+        for j in 1..ps.len() {
+            assert!(ps[0] < ps[j], "ps[{}] < ps[{}]", 0, j);
+        }
+
+        // Compare all priorities to each other
+        for i in 1..ps.len() {
+            for j in i + 1..ps.len() {
+                assert!(ps[i] > ps[j], "ps[{}] > ps[{}]", i, j);
+            }
+        }
+    }
+
+    #[test]
+    fn insert_200_begin_end() {
+        let mut ps = vec![Priority::new()];
+        for i in 0..199 {
+            if i % 2 == 0 {
+                let p = ps.last().unwrap().insert();
+                ps.push(p);
+            } else {
+                let p = ps.first().unwrap().insert();
+                ps.insert(1, p);
+            }
+        }
+
+        // Compare all priorities to each other
+        for i in 0..ps.len() {
+            for j in i + 1..ps.len() {
+                assert!(ps[i] < ps[j], "ps[{}] < ps[{}]", i, j);
+            }
+        }
+    }
+
+    #[test]
+    fn insert_10k_end() {
+        let mut ps = vec![Priority::new()];
+        for _ in 0..9_999 {
+            let p = ps.last().unwrap().insert();
+            ps.push(p);
+        }
+
+        // Compare consecutive priorities to each other
+        for i in 0..ps.len() - 1 {
+            assert!(ps[i] < ps[i + 1], "ps[{}] < ps[{}]", i, i + 1);
+        }
+    }
+
+    #[test]
+    fn insert_10k_begin() {
+        let p0 = Priority::new();
+        let mut ps = vec![p0.clone()];
+        for _ in 0..9_999 {
+            let p = p0.insert();
+            ps.push(p);
+        }
+
+        for j in 1..ps.len() - 1 {
+            assert!(ps[j + 1] < ps[j], "ps[{}] < ps[{}]", j + 1, j);
         }
     }
 }

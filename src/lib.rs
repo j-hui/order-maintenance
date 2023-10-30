@@ -257,7 +257,7 @@ impl Priority {
             let (count, weight) = {
                 let mut count = 1;
                 let mut prio = this.next().as_ref(arena);
-                while this.weight(prio) != 0 && this.weight(prio) <= count ^ 2 {
+                while this.weight(prio) != 0 && this.weight(prio) <= count * count {
                     prio = prio.next().as_ref(arena);
                     count += 1;
                 }
@@ -396,7 +396,7 @@ impl Priority {
                             panic!("Too many priorities were inserted, the root is overflowing!");
                         }
                         i += 1;
-                        // t_i *= PriorityTagRange::T;
+                        // t_i *= Priority::T;
                         range_size *= 2;
                         internal_node_tag >>= 1;
                         min_lab = internal_node_tag << i;
@@ -523,8 +523,8 @@ impl Drop for Priority {
 mod tests {
     use super::*;
 
-    // const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
-    const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
+    const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
+    // const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
 
     #[test]
     fn drop_single() {

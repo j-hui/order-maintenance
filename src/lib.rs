@@ -680,9 +680,7 @@ mod tests {
         }
     }
 
-    use rand::rngs::StdRng;
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     // reproducible random test with 10k elements
     #[test]

@@ -13,3 +13,8 @@ slotmap = { version = "1.0.6", default-features = false }
 
 [dev-dependencies]
 rand = "0.8.5"
+criterion = {version = "0.5.1", features = ["html_reports"]}
+
+[[bench]]
+name = "bench"
+harness = false

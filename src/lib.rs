@@ -679,4 +679,26 @@ mod tests {
             assert!(ps[j + 1] < ps[j], "ps[{}] < ps[{}]", j + 1, j);
         }
     }
+
+    use rand::rngs::StdRng;
+    use rand::Rng;
+    use rand::SeedableRng;
+
+    // reproducible random test with 10k elements
+    #[test]
+    fn insert_10k_random() {
+        let mut ps = vec![Priority::new()];
+        let mut rng = StdRng::seed_from_u64(42);
+
+        for _ in 0..9_999 {
+            let i = rng.gen_range(0..ps.len());
+            let p = INSERT_FN(&ps[i]);
+            ps.insert(i + 1, p);
+        }
+
+        // Compare consecutive priorities to each other
+        for i in 0..ps.len() - 1 {
+            assert!(ps[i] < ps[i + 1], "ps[{}] < ps[{}]", i, i + 1);
+        }
+    }
 }

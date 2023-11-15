@@ -529,10 +529,10 @@ mod Decision {
 
     struct Decisions(Vec<Decision>, usize);
 
-    impl Decisions {
-        pub fn to_prios(&self) -> Vec<Priority> {
+    impl From<Decisions> for Vec<Priority> {
+        fn from(ds: Decisions) -> Self {
             let mut ps = vec![Priority::new()];
-            for d in self.0.iter() {
+            for d in ds.0.iter() {
                 match d {
                     Decision::Insert(i) => {
                         let p = ps[*i].insert();

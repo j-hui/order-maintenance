@@ -519,6 +519,35 @@ impl Drop for Priority {
     }
 }
 
+mod Decision {
+    use crate::Priority;
+
+    enum Decision {
+        Insert(usize),
+        Drop(usize),
+    }
+
+    struct Decisions(Vec<Decision>, usize);
+
+    impl Decisions {
+        pub fn to_prios(&self) -> Vec<Priority> {
+            let mut ps = vec![Priority::new()];
+            for d in self.0.iter() {
+                match d {
+                    Decision::Insert(i) => {
+                        let p = ps[*i].insert();
+                        ps.insert(*i + 1, p);
+                    }
+                    Decision::Drop(i) => {
+                        ps.remove(*i);
+                    }
+                }
+            }
+            ps
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

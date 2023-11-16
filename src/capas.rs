@@ -482,3 +482,19 @@ pub const CAPAS: [[usize; 64]; 17] = [
         17, 18, 19, 20, 21, 22, 24, 25,
     ],
 ];
+
+// macro_rules! compute_capas {
+//     ($start_t:literal, $end_t:literal, $nb_ts:literal) => {{
+//         let gap = ($end_t - $start_t) / (($nb_ts - 1) as f64);
+//         let mut capas = [[0; 64]; $nb_ts];
+//         for i in 0..$nb_ts {
+//             let capa = &mut capas[i];
+//             for (j, capa) in capa.iter_mut().enumerate() {
+//                 *capa = ((2.0f64 / ($start_t + (i as f64) * gap))
+//                     .powi(j as i32)
+//                     .floor()) as usize;
+//             }
+//         }
+//         capas
+//     }};
+// }

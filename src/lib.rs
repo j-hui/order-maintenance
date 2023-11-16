@@ -519,15 +519,17 @@ impl Drop for Priority {
     }
 }
 
-mod Decision {
+mod decision {
     use crate::Priority;
 
-    enum Decision {
+    #[derive(Debug, Clone)]
+    pub enum Decision {
         Insert(usize),
         Drop(usize),
     }
 
-    struct Decisions(Vec<Decision>, usize);
+    #[derive(Debug, Clone)]
+    pub struct Decisions(pub Vec<Decision>, pub usize);
 
     impl From<Decisions> for Vec<Priority> {
         fn from(ds: Decisions) -> Self {
@@ -727,5 +729,42 @@ mod tests {
         for i in 0..ps.len() - 1 {
             assert!(ps[i] < ps[i + 1], "ps[{}] < ps[{}]", i, i + 1);
         }
+    }
+
+    use super::decision::{Decision, Decisions};
+    use quickcheck::{Arbitrary, Gen};
+    use quickcheck_macros::quickcheck;
+
+    impl Arbitrary for Decisions {
+        fn arbitrary(g: &mut Gen) -> Self {
+            if bool::arbitrary(g) {
+                Decisions(vec![], 0)
+            } else {
+                let Decisions(mut ds, s) = Decisions::arbitrary(g);
+                if s == 0 {
+                    ds.push(Decision::Insert(0));
+                    Decisions(ds, 1)
+                } else if bool::arbitrary(g) {
+                    ds.push(Decision::Insert(usize::arbitrary(g) % s));
+                    Decisions(ds, s + 1)
+                } else {
+                    ds.push(Decision::Drop(usize::arbitrary(g) % s));
+                    Decisions(ds, s - 1)
+                }
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn qc_priorities_are_ordered(ds: Decisions) -> bool {
+        let ps: Vec<Priority> = ds.clone().into();
+        for i in 0..ps.len() {
+            for j in i + 1..ps.len() {
+                if ps[i] >= ps[j] {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }

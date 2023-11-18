@@ -519,33 +519,82 @@ impl Drop for Priority {
     }
 }
 
-mod decision {
-    use crate::Priority;
+const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
+// const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
 
-    #[derive(Debug, Clone)]
+mod decision {
+    use std::fmt::Debug;
+    use std::vec::Vec;
+
+    use crate::{Priority, INSERT_FN};
+
+    #[derive(Debug, Clone, Copy)]
     pub enum Decision {
+        Init,
         Insert(usize),
         Drop(usize),
     }
 
-    #[derive(Debug, Clone)]
-    pub struct Decisions(pub Vec<Decision>, pub usize);
+    #[derive(Clone)]
+    pub struct Decisions(pub Vec<Decision>);
+
+    // #[derive(Clone)]
+    // pub struct Decisions(pub Rc<[Decision]>); // doesn't work because we need to know the size at compile time
 
     impl From<Decisions> for Vec<Priority> {
         fn from(ds: Decisions) -> Self {
-            let mut ps = vec![Priority::new()];
-            for d in ds.0.iter() {
+            let mut ps = vec![];
+            for &d in ds.0.iter() {
                 match d {
+                    Decision::Init => {
+                        assert!(ps.is_empty());
+                        ps.push(Priority::new());
+                    }
                     Decision::Insert(i) => {
-                        let p = ps[*i].insert();
-                        ps.insert(*i + 1, p);
+                        let p = INSERT_FN(&ps[i]);
+                        ps.insert(i + 1, p);
                     }
                     Decision::Drop(i) => {
-                        ps.remove(*i);
+                        ps.remove(i);
                     }
                 }
             }
             ps
+        }
+    }
+
+    impl Debug for Decisions {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let mut res_str = String::new();
+            res_str.push('\n');
+            res_str.push('\n');
+            for d in self.0.iter() {
+                match d {
+                    Decision::Init => {
+                        res_str.push_str("Init, ");
+                    }
+                    Decision::Insert(i) => {
+                        res_str.push_str(format!("I({}), ", i).as_str());
+                    }
+                    Decision::Drop(i) => {
+                        res_str.push_str(format!("D({}), ", i).as_str());
+                    }
+                }
+            }
+            res_str.push('\n');
+            res_str.push('\n');
+            let vec = Vec::<Priority>::from(self.clone());
+            if let Some(p0) = vec.first() {
+                p0.arena_mut(|a| {
+                    for (_, p) in vec.iter().enumerate() {
+                        res_str.push_str(p.this.as_ref(a).label().to_string().as_str());
+                        res_str.push_str(", ");
+                    }
+                });
+            }
+            res_str.push('\n');
+            res_str.push('\n');
+            write!(f, "{}", res_str)
         }
     }
 }
@@ -553,9 +602,6 @@ mod decision {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
-    // const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
 
     #[test]
     fn drop_single() {
@@ -737,32 +783,52 @@ mod tests {
 
     impl Arbitrary for Decisions {
         fn arbitrary(g: &mut Gen) -> Self {
-            if bool::arbitrary(g) {
-                Decisions(vec![], 0)
-            } else {
-                let Decisions(mut ds, s) = Decisions::arbitrary(g);
-                if s == 0 {
-                    ds.push(Decision::Insert(0));
-                    Decisions(ds, 1)
-                } else if bool::arbitrary(g) {
-                    ds.push(Decision::Insert(usize::arbitrary(g) % s));
-                    Decisions(ds, s + 1)
+            let mut ds = vec![];
+            let mut size: usize = 0;
+            let n: usize = usize::arbitrary(g) % 10_000;
+            // let n: usize = g.size();
+            for _ in 0..(n) {
+                if size == 0 {
+                    ds.push(Decision::Init);
+                    size += 1;
                 } else {
-                    ds.push(Decision::Drop(usize::arbitrary(g) % s));
-                    Decisions(ds, s - 1)
+                    let pos = usize::arbitrary(g) % size;
+                    if bool::arbitrary(g) {
+                        ds.push(Decision::Insert(pos));
+                        size += 1;
+                    } else {
+                        ds.push(Decision::Drop(pos));
+                        size -= 1;
+                    }
                 }
             }
+            Decisions(ds)
+        }
+
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            // Very inefficient for now
+            let vec = self.0.clone();
+            let len = vec.len();
+            // println!("shrink {len}");
+            Box::new(
+                (1..=10)
+                    .map(move |pow| vec[..(len - len / (1 << pow) - 1)].to_vec())
+                    .map(Decisions),
+            )
         }
     }
 
     #[quickcheck]
     fn qc_priorities_are_ordered(ds: Decisions) -> bool {
         let ps: Vec<Priority> = ds.clone().into();
-        for i in 0..ps.len() {
-            for j in i + 1..ps.len() {
-                if ps[i] >= ps[j] {
-                    return false;
-                }
+        if ps.is_empty() {
+            return true;
+        }
+        // check contiguous pairs only
+        for i in 0..ps.len() - 1 {
+            if ps[i] >= ps[i + 1] {
+                println!("ps[{}] >= ps[{}]", i, i + 1);
+                return false;
             }
         }
         true

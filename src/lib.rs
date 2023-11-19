@@ -594,6 +594,11 @@ mod decision {
             }
             res_str.push('\n');
             res_str.push('\n');
+            res_str.push_str(
+                format!("Decisions: {} - Priorities: {}", self.0.len(), vec.len()).as_str(),
+            );
+            res_str.push('\n');
+            res_str.push('\n');
             write!(f, "{}", res_str)
         }
     }
@@ -813,6 +818,7 @@ mod tests {
             Box::new(
                 (1..=10)
                     .map(move |pow| vec[..(len - len / (1 << pow) - 1)].to_vec())
+                    .chain(std::iter::once(self.0[..(len - 1)].to_vec()))
                     .map(Decisions),
             )
         }

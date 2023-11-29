@@ -9,13 +9,14 @@ description = "Totally-ordered priorities for the order maintainence problem"
 repository = "https://github.com/j-hui/order-maintenance"
 
 [dependencies]
-slotmap = { version = "1.0.6", default-features = false }
+slab = "0.4.9"
+quickcheck = "1.0.3"
 
 [dev-dependencies]
 rand = "0.8.5"
 criterion = {version = "0.5.1", features = ["html_reports"]}
-quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
+flamegraph = "0.6.4"
 
 [[bench]]
 name = "bench"

@@ -1,7 +1,7 @@
 //! Totally-ordered priorities.
 //!
 //! See documentation for [`Priority`].
-use slotmap::{self, HopSlotMap};
+use slab::Slab;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
@@ -9,29 +9,16 @@ use std::rc::Rc;
 mod capas;
 use capas::CAPAS;
 
-slotmap::new_key_type! {
-    /// Reference to a [`Priority`], used as a key to [`Arena::priorities`].
-    struct PriorityRef;
-}
-
-impl PriorityRef {
-    /// "Dereferences" this index in an arena.
-    ///
-    /// Basically flips the arguments of [`Arena::get()`], but since this is in postfix, it's
-    /// useful for chaining a series of operations.
-    fn as_ref(self, arena: &Arena) -> &PriorityInner {
-        arena.get(self)
-    }
-}
+type PriorityRef = usize;
 
 /// Shared state between all priorities that can be compared.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Arena {
     /// Total number of priorities allocated in this arena.
     total: usize,
 
     /// Internal store of priorities, indexed by [`PriorityRef`].
-    priorities: HopSlotMap<PriorityRef, PriorityInner>,
+    priorities: Slab<PriorityInner>,
 
     /// Key to the base priority, which should never be deleted (unless the arena is dropped).
     base: PriorityRef,
@@ -45,11 +32,12 @@ impl Arena {
     // const SIZE: usize = 1 << (usize::BITS - 1);
 
     fn new_with_priority() -> (Self, PriorityRef) {
-        let mut priorities = HopSlotMap::with_key();
+        let mut priorities = Slab::new();
+        let base_key = priorities.vacant_key();
 
-        let base = priorities.insert_with_key(|k| PriorityInner {
-            next: RefCell::new(k),
-            prev: RefCell::new(k),
+        let base = priorities.insert(PriorityInner {
+            next: RefCell::new(base_key),
+            prev: RefCell::new(base_key),
             label: RefCell::new(Arena::BASE),
             ref_count: RefCell::new(1),
         });
@@ -57,7 +45,7 @@ impl Arena {
         let first = priorities.insert(PriorityInner {
             next: RefCell::new(base),
             prev: RefCell::new(base),
-            label: RefCell::new(usize::MAX / 2),
+            label: RefCell::new(Arena::BASE + 1),
             ref_count: RefCell::new(1),
         });
 
@@ -79,9 +67,9 @@ impl Arena {
 
     /// Insert a new priority into priorities store, constructing that priority using the given
     /// closure that takes the new key as argument.
-    fn insert(&mut self, f: impl FnOnce(PriorityRef) -> PriorityInner) -> PriorityRef {
+    fn insert(&mut self, p: PriorityInner) -> PriorityRef {
         self.total += 1;
-        self.priorities.insert_with_key(f)
+        self.priorities.insert(p)
     }
 
     /// Remove a priority from the priorities store.
@@ -248,7 +236,7 @@ impl Priority {
     /// Allocate the next greatest priority after the given `self`.
     pub fn insert(&self) -> Self {
         let key = self.arena_mut(|arena| {
-            let this = self.this.as_ref(arena);
+            let this = arena.get(self.this);
 
             // Before we insert anything, we first need to relabel successive priorities in
             // order to ensure labels are evenly distributed.
@@ -256,16 +244,16 @@ impl Priority {
             // Search for how many nodes we need to relabel, and its weight
             let (count, weight) = {
                 let mut count = 1;
-                let mut prio = this.next().as_ref(arena);
+                let mut prio = arena.get(this.next());
                 while this.weight(prio) != 0 && this.weight(prio) <= count * count {
-                    prio = prio.next().as_ref(arena);
+                    prio = arena.get(prio.next());
                     count += 1;
                 }
                 (count, this.weight(prio))
             };
 
             // Now, adjust labels of those nodes
-            let mut prio = this.next().as_ref(arena);
+            let mut prio = arena.get(this.next());
             for k in 1..count {
                 // if weight == 0, then it should actually encode usize::MAX + 1.
                 let weight_k = if weight == 0 {
@@ -277,17 +265,17 @@ impl Priority {
                 };
                 prio.set_label((weight_k / count).wrapping_add(this.label()));
 
-                prio = prio.next().as_ref(arena);
+                prio = arena.get(prio.next());
             }
 
             // Compute new priority fields
             let new_label = // New label is half-way between this and next
-                this.label().wrapping_add(this.next().as_ref(arena).label().wrapping_sub(this.label()) / 2);
+                this.label().wrapping_add(arena.get(this.next()).label().wrapping_sub(this.label()) / 2);
             let new_prev = self.this;
             let new_next = this.next();
 
             // Allocate new node
-            let new_key = arena.insert(|_| PriorityInner {
+            let new_key = arena.insert(PriorityInner {
                 next: RefCell::new(new_next),
                 prev: RefCell::new(new_prev),
                 label: RefCell::new(new_label),
@@ -295,8 +283,8 @@ impl Priority {
             });
 
             // Fix up pointers to point to newly allocated node
-            let this = self.this.as_ref(arena); // appease borrow checker (:
-            this.next().as_ref(arena).set_prev(new_key); // self.next.prev = new
+            let this = arena.get(self.this); // appease borrow checker (:
+            arena.get(this.next()).set_prev(new_key); // self.next.prev = new
             this.set_next(new_key); // self.next = new
 
             new_key
@@ -310,8 +298,8 @@ impl Priority {
 
     pub fn insert_tag_range(&self) -> Self {
         let key = self.arena_mut(|arena| {
-            let this = self.this.as_ref(arena);
-            let next = this.next().as_ref(arena);
+            let this = arena.get(self.this);
+            let next = arena.get(this.next());
 
             let mut this_lab = this.label();
             let mut next_lab = if next.label() == Arena::BASE {
@@ -347,7 +335,7 @@ impl Priority {
                 let mut max_lab = internal_node_tag + 1;
 
                 let mut begin = this;
-                let mut end = this.next().as_ref(arena);
+                let mut end = arena.get(this.next());
 
                 // The density threshold is 1/T^i
                 // So we want to find the smallest subrange so that count/2^i <= 1/T^i
@@ -357,18 +345,18 @@ impl Priority {
                     while begin.label() >= min_lab {
                         range_count += 1;
                         if begin.label() == Arena::BASE {
-                            begin = begin.prev().as_ref(arena);
+                            begin = arena.get(begin.prev());
                             break;
                         }
-                        begin = begin.prev().as_ref(arena);
+                        begin = arena.get(begin.prev());
                     }
                     // backtrack one step (this bound is inclusive)
-                    begin = begin.next().as_ref(arena);
+                    begin = arena.get(begin.next());
                     range_count -= 1;
 
                     while end.label() < max_lab && end.label() != Arena::BASE {
                         range_count += 1;
-                        end = end.next().as_ref(arena);
+                        end = arena.get(end.next())
                     }
 
                     if range_count < CAPAS[t_index][i] {
@@ -379,7 +367,7 @@ impl Priority {
 
                         loop {
                             begin.set_label(new_label);
-                            begin = begin.next().as_ref(arena);
+                            begin = arena.get(begin.next());
                             if begin.label() == end.label() {
                                 break;
                             }
@@ -418,7 +406,7 @@ impl Priority {
             let new_next = this.next();
 
             // Allocate new node
-            let new_key = arena.insert(|_| PriorityInner {
+            let new_key = arena.insert(PriorityInner {
                 next: RefCell::new(new_next),
                 prev: RefCell::new(new_prev),
                 label: RefCell::new(new_label),
@@ -426,8 +414,8 @@ impl Priority {
             });
 
             // Fix up pointers to point to newly allocated node
-            let this = self.this.as_ref(arena); // appease borrow checker (:
-            this.next().as_ref(arena).set_prev(new_key); // self_inner.next.prev = new
+            let this = arena.get(self.this); // appease borrow checker (:
+            arena.get(this.next()).set_prev(new_key); // self_inner.next.prev = new
             this.set_next(new_key); // self_inner.next = new
 
             new_key
@@ -454,19 +442,14 @@ impl Priority {
     }
 
     fn relative(&self) -> usize {
-        self.arena(|a| {
-            self.this
-                .as_ref(a)
-                .label()
-                .wrapping_sub(a.base.as_ref(a).label())
-        })
+        self.arena(|a| a.get(self.this).label().wrapping_sub(a.get(a.base).label()))
     }
 }
 
 impl Clone for Priority {
     fn clone(&self) -> Self {
         // Increment ref count of the `PriorityInner`.
-        self.arena(|a| self.this.as_ref(a).ref_inc());
+        self.arena(|a| a.get(self.this).ref_inc());
 
         Self {
             arena: self.arena.clone(),
@@ -500,18 +483,18 @@ impl PartialOrd for Priority {
 impl Drop for Priority {
     fn drop(&mut self) {
         self.arena_mut(|a| {
-            if self.this.as_ref(a).ref_dec() {
+            if a.get(self.this).ref_dec() {
                 // Ref count reached zero; remove this node from the linked list, then deallocate
                 // it from the arena.
 
-                let next = self.this.as_ref(a).next();
-                let prev = self.this.as_ref(a).prev();
+                let next = a.get(self.this).next();
+                let prev = a.get(self.this).prev();
 
                 // self.next.prev = self.prev
-                next.as_ref(a).set_prev(prev);
+                a.get(next).set_prev(prev);
 
                 // self.prev.next = self.next
-                prev.as_ref(a).set_next(next);
+                a.get(prev).set_next(next);
 
                 a.remove(self.this)
             }
@@ -519,10 +502,10 @@ impl Drop for Priority {
     }
 }
 
-const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
-// const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
+// const INSERT_FN: fn(&Priority) -> Priority = Priority::insert;
+const INSERT_FN: fn(&Priority) -> Priority = Priority::insert_tag_range;
 
-mod decision {
+pub mod decision {
     use std::fmt::Debug;
     use std::vec::Vec;
 
@@ -566,8 +549,7 @@ mod decision {
     impl Debug for Decisions {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let mut res_str = String::new();
-            res_str.push('\n');
-            res_str.push('\n');
+            res_str.push_str("\n\n");
             for d in self.0.iter() {
                 match d {
                     Decision::Init => {
@@ -581,25 +563,75 @@ mod decision {
                     }
                 }
             }
-            res_str.push('\n');
-            res_str.push('\n');
+            if !self.0.is_empty() {
+                res_str.push_str("\n\nBefore last: ");
+                let vec =
+                    Vec::<Priority>::from(Decisions(self.0.clone()[..self.0.len() - 1].to_vec()));
+                if let Some(p0) = vec.first() {
+                    p0.arena_mut(|a| {
+                        for (_, p) in vec.iter().enumerate() {
+                            res_str.push_str(a.get(p.this).label().to_string().as_str());
+                            res_str.push_str(", ");
+                        }
+                    });
+                }
+            }
+            res_str.push_str("\n\nAfter last: ");
             let vec = Vec::<Priority>::from(self.clone());
             if let Some(p0) = vec.first() {
                 p0.arena_mut(|a| {
                     for (_, p) in vec.iter().enumerate() {
-                        res_str.push_str(p.this.as_ref(a).label().to_string().as_str());
+                        res_str.push_str(a.get(p.this).label().to_string().as_str());
                         res_str.push_str(", ");
                     }
                 });
             }
-            res_str.push('\n');
-            res_str.push('\n');
+            res_str.push_str("\n\n");
             res_str.push_str(
                 format!("Decisions: {} - Priorities: {}", self.0.len(), vec.len()).as_str(),
             );
-            res_str.push('\n');
-            res_str.push('\n');
+            res_str.push_str("\n\n");
             write!(f, "{}", res_str)
+        }
+    }
+
+    use quickcheck::{Arbitrary, Gen};
+
+    impl Arbitrary for Decisions {
+        fn arbitrary(g: &mut Gen) -> Self {
+            let mut ds = vec![];
+            let mut size: usize = 0;
+            let n: usize = usize::arbitrary(g) % 10_000;
+            // let n: usize = g.size();
+            for _ in 0..(n) {
+                if size == 0 {
+                    ds.push(Decision::Init);
+                    size += 1;
+                } else {
+                    let pos = usize::arbitrary(g) % size;
+                    if bool::arbitrary(g) {
+                        ds.push(Decision::Insert(pos));
+                        size += 1;
+                    } else {
+                        ds.push(Decision::Drop(pos));
+                        size -= 1;
+                    }
+                }
+            }
+            Decisions(ds)
+        }
+
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            // Very inefficient for now
+            let vec = self.0.clone();
+            let len = vec.len();
+            // println!("shrink {len}");
+            Box::new(
+                (1..=10)
+                    .map(move |pow| vec[..(len - len / (1 << pow) - 1)].to_vec())
+                    .chain(std::iter::once(self.0[..(len - 1)].to_vec()))
+                    .map(Decisions),
+            )
         }
     }
 }
@@ -782,47 +814,8 @@ mod tests {
         }
     }
 
-    use super::decision::{Decision, Decisions};
-    use quickcheck::{Arbitrary, Gen};
+    use super::decision::Decisions;
     use quickcheck_macros::quickcheck;
-
-    impl Arbitrary for Decisions {
-        fn arbitrary(g: &mut Gen) -> Self {
-            let mut ds = vec![];
-            let mut size: usize = 0;
-            let n: usize = usize::arbitrary(g) % 10_000;
-            // let n: usize = g.size();
-            for _ in 0..(n) {
-                if size == 0 {
-                    ds.push(Decision::Init);
-                    size += 1;
-                } else {
-                    let pos = usize::arbitrary(g) % size;
-                    if bool::arbitrary(g) {
-                        ds.push(Decision::Insert(pos));
-                        size += 1;
-                    } else {
-                        ds.push(Decision::Drop(pos));
-                        size -= 1;
-                    }
-                }
-            }
-            Decisions(ds)
-        }
-
-        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
-            // Very inefficient for now
-            let vec = self.0.clone();
-            let len = vec.len();
-            // println!("shrink {len}");
-            Box::new(
-                (1..=10)
-                    .map(move |pow| vec[..(len - len / (1 << pow) - 1)].to_vec())
-                    .chain(std::iter::once(self.0[..(len - 1)].to_vec()))
-                    .map(Decisions),
-            )
-        }
-    }
 
     #[quickcheck]
     fn qc_priorities_are_ordered(ds: Decisions) -> bool {

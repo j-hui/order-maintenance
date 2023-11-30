@@ -9,7 +9,8 @@ use std::rc::Rc;
 mod capas;
 use capas::CAPAS;
 
-type PriorityRef = usize;
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct PriorityRef(usize);
 
 /// Shared state between all priorities that can be compared.
 #[derive(Debug)]
@@ -33,24 +34,24 @@ impl Arena {
 
     fn new_with_priority() -> (Self, PriorityRef) {
         let mut priorities = Slab::new();
-        let base_key = priorities.vacant_key();
+        let base_key = PriorityRef(priorities.vacant_key());
 
-        let base = priorities.insert(PriorityInner {
+        let base = PriorityRef(priorities.insert(PriorityInner {
             next: RefCell::new(base_key),
             prev: RefCell::new(base_key),
             label: RefCell::new(Arena::BASE),
             ref_count: RefCell::new(1),
-        });
+        }));
 
-        let first = priorities.insert(PriorityInner {
+        let first = PriorityRef(priorities.insert(PriorityInner {
             next: RefCell::new(base),
             prev: RefCell::new(base),
             label: RefCell::new(Arena::BASE + 1),
             ref_count: RefCell::new(1),
-        });
+        }));
 
         let base_prio = priorities
-            .get(base)
+            .get(base.0)
             .expect("base should have just been inserted");
         base_prio.set_next(first);
         base_prio.set_prev(first);
@@ -69,18 +70,18 @@ impl Arena {
     /// closure that takes the new key as argument.
     fn insert(&mut self, p: PriorityInner) -> PriorityRef {
         self.total += 1;
-        self.priorities.insert(p)
+        PriorityRef(self.priorities.insert(p))
     }
 
     /// Remove a priority from the priorities store.
     fn remove(&mut self, key: PriorityRef) {
-        self.priorities.remove(key);
+        self.priorities.remove(key.0);
         self.total -= 1;
     }
 
     /// Retrieve a reference to a priority from the priorities store using a key.
     fn get(&self, key: PriorityRef) -> &PriorityInner {
-        self.priorities.get(key).unwrap()
+        self.priorities.get(key.0).unwrap()
     }
 }
 

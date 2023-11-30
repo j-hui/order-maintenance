@@ -1,0 +1,16 @@
+[package]
+name = "order_maintenance_macros"
+version = "0.1.0"
+edition = "2021"
+description = "Procedural macros for order-maintenance algorithms"
+repository = "https://github.com/j-hui/order-maintenance"
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0"
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
+proc-macro-error = { version = "1.0", optional = true }
+syn = { version = "2.0", features = ["full"] }

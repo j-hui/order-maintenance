@@ -31,6 +31,8 @@ impl PriorityKey {
 }
 
 /// Label (i.e., the "tag") that is used to compare priorities.
+///
+/// TODO: wrap the usize and make this a proper type.
 pub(crate) type Label = usize;
 
 /// Shared state between all priorities that can be compared.

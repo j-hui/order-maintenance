@@ -2,6 +2,7 @@
 //!
 //! See documentation for [`Priority`].
 
+mod label;
 mod internal;
 mod capas;
 pub mod tag_range;

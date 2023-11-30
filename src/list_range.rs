@@ -27,7 +27,7 @@ impl Priority {
 
             let mut this_lab = this.label();
             let mut next_lab = if next.label() == Arena::BASE {
-                usize::MAX
+                Label::MAX
             } else {
                 next.label()
             };
@@ -119,7 +119,7 @@ impl Priority {
 
             this_lab = this.label();
             next_lab = if next.label() == Arena::BASE {
-                usize::MAX
+                Label::MAX
             } else {
                 next.label()
             };

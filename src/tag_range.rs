@@ -93,11 +93,11 @@ impl Priority {
                 let mut count = 1;
                 let mut prio = this.next().as_ref(arena);
 
-                let mut weight = prio.label().wrapping_sub(this.label());
+                let mut weight = prio.label() - this.label();
                 while weight != 0 && weight <= count * count {
                     prio = prio.next().as_ref(arena);
                     count += 1;
-                    weight = prio.label().wrapping_sub(this.label());
+                    weight = prio.label() - this.label();
                 }
                 (count, weight)
             };
@@ -105,27 +105,30 @@ impl Priority {
             // Now, adjust labels of those nodes
             let mut prio = this.next().as_ref(arena);
             for k in 1..count {
+                // let k: Label = Label::new(k);
                 // if weight == 0, then it should actually encode usize::MAX + 1.
                 let weight_k = if weight == 0 {
                     // Since we can't actually represent usize::MAX + 1, we just multiply it by
                     // ((usize::MAX + 1) / 2) AKA (1 << (usize::BITS / 2)), and then multiply by 2.
-                    k.wrapping_mul(1 << (usize::BITS / 2)).wrapping_mul(2)
+
+                    Label::new((k * (1 << (Label::BITS / 2))) * 2)
+
+                    // k.wrapping_mul(1 << (usize::BITS / 2)).wrapping_mul(2)
                 } else {
-                    k.wrapping_mul(weight)
+                    weight * k
                 };
-                prio.set_label((weight_k / count).wrapping_add(this.label()));
+                prio.set_label(weight_k / count + this.label());
 
                 prio = prio.next().as_ref(arena);
             }
 
-            // Compute new priority fields
-            this.label()
-                .wrapping_add(this.next().as_ref(arena).label().wrapping_sub(this.label()) / 2)
+            // Compute new priority, which is half-way between this priority and the next
+            this.label() + (this.next().as_ref(arena).label() - this.label()) / 2
         }))
     }
 
     fn relative(&self) -> Label {
-        self.0.label().wrapping_sub(self.0.base_label())
+        self.0.label() - self.0.base_label()
     }
 }
 

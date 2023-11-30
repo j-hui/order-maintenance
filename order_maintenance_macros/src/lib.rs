@@ -8,6 +8,13 @@ use syn::{
     Attribute, LitFloat, LitInt, Token, Visibility,
 };
 
+/// Declaration for threshold range.
+///
+/// Looks like this:
+///
+/// ```
+/// {vis?} const {name}: [[{begin}..={end}; {bits}]; {count}];
+/// ```
 struct ThresholdRange {
     attrs: Vec<Attribute>,
     vis: Visibility,
@@ -62,6 +69,8 @@ impl ThresholdRange {
         let bits: usize = self.bits.base10_parse()?;
         let count: usize = self.count.base10_parse()?;
 
+        // TODO: warn if bits is not 32/64/a reasonable value?
+
         let gap = (end - begin) / (count as f64);
 
         let capas: Vec<Vec<usize>> = (0..count)
@@ -94,7 +103,9 @@ pub fn generate_capacities(input: proc_macro::TokenStream) -> proc_macro::TokenS
         .into()
 }
 
+/// Compute the capacities for a particular threshold.
 fn capacities_for_threshold(t: f64, bits: usize) -> Vec<usize> {
+    // TODO: assert that `t` is between 1.0 and 2.0?
     (0..bits)
         .map(|b| ((2.0f64 / t).powi(b as i32).floor()) as usize)
         .collect()

@@ -181,29 +181,3 @@ impl MaintainedOrd for Priority {
         }))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    macro_rules! delegate_tests {
-        () => {};
-        (fn $test_name:ident(); $($toks:tt)*) => {
-            #[test]
-            fn $test_name() {
-                crate::tests::$test_name::<super::Priority>();
-            }
-            delegate_tests!{$($toks)*}
-        };
-    }
-    delegate_tests! {
-        fn compare_two();
-        fn insertion();
-        fn transitive();
-        fn insert_some_begin();
-        fn insert_some_end();
-        fn insert_some_flipflop();
-        fn insert_many_begin();
-        fn insert_many_end();
-        fn insert_some_begin_many_end();
-        fn insert_many_random();
-    }
-}

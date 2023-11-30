@@ -1,6 +1,5 @@
+use crate::internal::{Arena, Label, PriorityRef};
 use std::cmp::Ordering;
-
-use super::internal::{Arena, Label, PriorityRef};
 
 /// A totally-ordered priority.
 ///

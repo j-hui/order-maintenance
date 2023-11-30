@@ -1,8 +1,6 @@
+use crate::capas::CAPAS;
+use crate::internal::{Arena, Label, PriorityRef};
 use std::cmp::Ordering;
-
-use super::internal::{Arena, Label, PriorityRef};
-
-use super::capas::CAPAS;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Priority(PriorityRef);

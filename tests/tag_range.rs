@@ -10,7 +10,7 @@ macro_rules! delegate_tests {
     (fn $test_name:ident(); $($toks:tt)*) => {
         #[test]
         fn $test_name() {
-            common::$test_name::<Priority>();
+            common::tests::$test_name::<Priority>();
         }
         delegate_tests!{$($toks)*}
     };

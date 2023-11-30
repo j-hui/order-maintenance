@@ -64,7 +64,7 @@ impl Arena {
             })
             .into();
 
-        assert_eq!(base_key, base);
+        debug_assert_eq!(base_key, base);
 
         Self {
             total: 1,

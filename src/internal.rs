@@ -1,4 +1,6 @@
-/// Internal representation and memory management of priorities.
+//! Internal representation and memory management of priorities.
+
+pub(crate) use crate::label::Label;
 use slab::Slab;
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -30,11 +32,6 @@ impl PriorityKey {
     }
 }
 
-/// Label (i.e., the "tag") that is used to compare priorities.
-///
-/// TODO: wrap the usize and make this a proper type.
-pub(crate) type Label = usize;
-
 /// Shared state between all priorities that can be compared.
 #[derive(Debug)]
 pub(crate) struct Arena {
@@ -50,7 +47,7 @@ pub(crate) struct Arena {
 
 impl Arena {
     /// Label for the initial priority allocated in this arena.
-    pub(crate) const BASE: Label = 0;
+    pub(crate) const BASE: Label = Label::new(0);
 
     /// Construct a new arena to allocate priorities in.
     ///
@@ -232,7 +229,6 @@ impl PriorityRef {
     /// Get the label of this priority.
     pub(crate) fn label(&self) -> Label {
         self.arena.borrow().get(self.this).label()
-
     }
 
     /// Get the label of the base priority.

@@ -38,6 +38,7 @@ macro_rules! impl_label_ops {
         }
         impl_label_ops!{$($toks)*}
     };
+
     (impl $op:ident<usize> { use $op_impl:ident in $method:ident } $($toks:tt)*) => {
         impl std::ops::$op<usize> for Label {
             type Output = Self;
@@ -47,6 +48,7 @@ macro_rules! impl_label_ops {
         }
         impl_label_ops!{$($toks)*}
     };
+
     (impl mut $op:ident<Label> { use $op_impl:ident in $method:ident  } $($toks:tt)*) => {
         impl std::ops::$op<Label> for Label {
             fn $method(&mut self, rhs: Label) {
@@ -55,6 +57,7 @@ macro_rules! impl_label_ops {
         }
         impl_label_ops!{$($toks)*}
     };
+
     (impl mut $op:ident<usize> { use $op_impl:ident in $method:ident } $($toks:tt)*) => {
         impl std::ops::$op<usize> for Label {
             fn $method(&mut self, rhs: usize) {

@@ -34,14 +34,14 @@ impl Arena {
 
     fn new_with_priority() -> (Self, PriorityRef) {
         let mut priorities = Slab::new();
-        let base_key = PriorityRef(priorities.vacant_key());
+        let base = PriorityRef(priorities.vacant_key());
 
-        let base = PriorityRef(priorities.insert(PriorityInner {
-            next: RefCell::new(base_key),
-            prev: RefCell::new(base_key),
+        priorities.insert(PriorityInner {
+            next: RefCell::new(base),
+            prev: RefCell::new(base),
             label: RefCell::new(Arena::BASE),
             ref_count: RefCell::new(1),
-        }));
+        });
 
         let first = PriorityRef(priorities.insert(PriorityInner {
             next: RefCell::new(base),

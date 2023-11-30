@@ -2,13 +2,15 @@
 //!
 //! See documentation for [`Priority`].
 
-mod capas;
 mod internal;
 mod label;
 pub mod list_range;
 pub mod tag_range;
 
+/// TODO: doc
 pub trait MaintainedOrd: PartialEq + PartialOrd {
+    /// TODO: doc
     fn new() -> Self;
+    /// TODO: doc
     fn insert(&self) -> Self;
 }

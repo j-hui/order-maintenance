@@ -23,7 +23,7 @@ use std::cmp::Ordering;
 /// ## Usage
 ///
 /// ```rust
-/// # use order_maintenance::priority::tag_range*;
+/// # use order_maintenance::tag_range::*;
 /// let p0 = Priority::new();
 /// let p2 = p0.insert();
 /// let p1 = p0.insert();
@@ -77,7 +77,7 @@ impl Priority {
         let mut arena = Arena::new();
 
         // For tag-range, the base is a special priority, so we need to use another one.
-        let this = arena.insert_after(Arena::BASE + 1, arena.base());
+        let this = arena.insert_after(Label::MAX / 2, arena.base());
         Self(PriorityRef::new(arena, this))
     }
 

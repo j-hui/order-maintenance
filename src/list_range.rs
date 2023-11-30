@@ -7,6 +7,42 @@ generate_capacities! {
     const CAPACITIES: [[1.1..=1.9; 64]; 17];
 }
 
+
+/// A totally-ordered priority.
+///
+/// These priorities implement Bender et al. (2002)'s solution to the order maintenance problem,
+/// which require a data structure `T` that supports insertion and comparison operations such that
+/// insertion constructs an element of the next greatest priority:
+///
+/// ```text
+/// forall t: T, t < t.insert()
+/// ```
+///
+/// but is still lower priority than all other greater priorities:
+///
+/// ```text
+/// forall t t': T s.t. t < t', t.insert() < t'
+/// ```
+///
+/// Amongst a collection of `n` priorities, comparison takes constant time, while insertion takes
+/// amortized `log(n)` time.
+///
+/// ## Usage
+///
+/// ```rust
+/// # use order_maintenance::list_range::*;
+/// let p0 = Priority::new();
+/// let p2 = p0.insert();
+/// let p1 = p0.insert();
+/// let p3 = p2.insert();
+///
+/// assert!(p0 < p1);
+/// assert!(p0 < p2);
+/// assert!(p0 < p3);
+/// assert!(p1 < p2);
+/// assert!(p1 < p3);
+/// assert!(p2 < p3);
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Priority(PriorityRef);
 

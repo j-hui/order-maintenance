@@ -1,4 +1,5 @@
 use crate::internal::{Arena, Label, PriorityRef};
+pub use crate::MaintainedOrd;
 use std::cmp::Ordering;
 
 /// A totally-ordered priority.
@@ -72,8 +73,25 @@ use std::cmp::Ordering;
 pub struct Priority(PriorityRef);
 
 impl Priority {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    fn relative(&self) -> Label {
+        self.0.label() - self.0.base_label()
+    }
+}
+
+impl PartialOrd for Priority {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if !self.0.same_arena(&other.0) {
+            None
+        } else if self.0 == other.0 {
+            Some(Ordering::Equal)
+        } else {
+            self.relative().partial_cmp(&other.relative())
+        }
+    }
+}
+
+impl MaintainedOrd for Priority {
+    fn new() -> Self {
         let mut arena = Arena::new();
 
         // For tag-range, the base is a special priority, so we need to use another one.
@@ -81,7 +99,7 @@ impl Priority {
         Self(PriorityRef::new(arena, this))
     }
 
-    pub fn insert(&self) -> Self {
+    fn insert(&self) -> Self {
         Self(self.0.insert(|arena| {
             let this = self.0.this().as_ref(arena);
 
@@ -126,140 +144,30 @@ impl Priority {
             this.label() + (this.next().as_ref(arena).label() - this.label()) / 2
         }))
     }
-
-    fn relative(&self) -> Label {
-        self.0.label() - self.0.base_label()
-    }
-}
-
-impl PartialOrd for Priority {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if !self.0.same_arena(&other.0) {
-            None
-        } else if self.0 == other.0 {
-            Some(Ordering::Equal)
-        } else {
-            self.relative().partial_cmp(&other.relative())
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    const SOME: usize = 500;
-    const MANY: usize = 2000;
-
-    #[test]
-    fn drop_single() {
-        let _p = Priority::new();
-    }
-
-    #[test]
-    fn compare_two() {
-        let p1 = Priority::new();
-        let p2 = p1.insert();
-        println!("{:#?} and {:#?}", p1.relative(), p2.relative());
-        assert!(p1 < p2);
-    }
-
-    #[test]
-    fn insertion() {
-        let p1 = Priority::new();
-        let p3 = p1.insert();
-        let p2 = p1.insert();
-
-        assert!(p1 < p2);
-        assert!(p2 < p3);
-        assert!(p1 < p3);
-    }
-
-    #[test]
-    fn transitive() {
-        let p1 = Priority::new();
-        let p2 = p1.insert();
-        let p3 = p2.insert();
-
-        assert!(p1 < p2);
-        assert!(p2 < p3);
-        assert!(p1 < p3);
-    }
-
-    fn do_insert(n: usize, mut next_index: impl FnMut(usize) -> usize) {
-        let mut ps = vec![Priority::new()];
-
-        for i in 0..n {
-            let i = next_index(i);
-            ps.insert(i + 1, ps[i].insert())
-        }
-
-        // Compare all priorities to each other
-        for i in 0..ps.len() {
-            for j in i + 1..ps.len() {
-                assert!(ps[i] < ps[j], "ps[{}] < ps[{}]", i, j);
+    macro_rules! delegate_tests {
+        () => {};
+        (fn $test_name:ident(); $($toks:tt)*) => {
+            #[test]
+            fn $test_name() {
+                crate::tests::$test_name::<super::Priority>();
             }
-        }
+            delegate_tests!{$($toks)*}
+        };
     }
-
-    fn do_insert_begin(n: usize) {
-        let p0 = Priority::new();
-        let mut ps = vec![p0.clone()];
-        for _ in 0..n {
-            let p = p0.insert();
-            ps.push(p);
-        }
-
-        for j in 1..ps.len() {
-            assert!(ps[0] < ps[j], "ps[{}] < ps[{}]", 0, j);
-        }
-
-        // Compare all priorities to each other
-        for i in 1..ps.len() {
-            for j in i + 1..ps.len() {
-                assert!(ps[i] > ps[j], "ps[{}] > ps[{}]", i, j);
-            }
-        }
-    }
-
-    #[test]
-    fn insert_some_begin() {
-        do_insert(SOME, |_| 0);
-        do_insert_begin(SOME);
-    }
-
-    /// BUG: this fails
-    #[test]
-    fn insert_some_end() {
-        do_insert(SOME, |n| n);
-    }
-
-    #[test]
-    fn insert_some_flipflop() {
-        do_insert(SOME, |n| if n % 2 == 0 { 0 } else { n })
-    }
-
-    #[test]
-    fn insert_many_begin() {
-        do_insert_begin(MANY);
-    }
-
-    /// BUG: this fails
-    #[test]
-    fn insert_many_end() {
-        do_insert(MANY, |n| n);
-    }
-
-    #[test]
-    fn insert_some_begin_many_end() {
-        do_insert(MANY, |n| if n < SOME { 0 } else { n })
-    }
-
-    #[test]
-    fn insert_many_random() {
-        use rand::{rngs::StdRng, Rng, SeedableRng};
-
-        let mut rng = StdRng::seed_from_u64(42);
-        do_insert(MANY, |n| rng.gen_range(0..n.max(1)));
+    delegate_tests! {
+        fn compare_two();
+        fn insertion();
+        fn transitive();
+        fn insert_some_begin();
+        fn insert_some_end();
+        fn insert_some_flipflop();
+        fn insert_many_begin();
+        fn insert_many_end();
+        fn insert_some_begin_many_end();
+        fn insert_many_random();
     }
 }

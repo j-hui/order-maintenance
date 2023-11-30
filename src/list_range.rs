@@ -1,6 +1,11 @@
-use crate::capas::CAPAS;
 use crate::internal::{Arena, Label, PriorityRef};
+use order_maintenance_macros::generate_capacities;
 use std::cmp::Ordering;
+
+generate_capacities! {
+    /// Capacities for 17 thresholds in the range `(1.1..=1.9)` (inclusive) with 64-bit tags.
+    const CAPACITIES: [[1.1..=1.9; 64]; 17];
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Priority(PriorityRef);
@@ -31,10 +36,10 @@ impl Priority {
                 // Relabeling
 
                 // find the correct list of capacities depending onnumber of priorities already inserted
-                let capas_len = CAPAS.len();
+                let capas_len = CAPACITIES.len();
                 let mut t_index = capas_len;
-                for (t_index_iter, _) in CAPAS.iter().enumerate().rev() {
-                    if arena.total() + 1 < CAPAS[t_index_iter][63] {
+                for (t_index_iter, _) in CAPACITIES.iter().enumerate().rev() {
+                    if arena.total() + 1 < CAPACITIES[t_index_iter][63] {
                         t_index = t_index_iter;
                         break;
                     }
@@ -78,7 +83,7 @@ impl Priority {
                         end = end.next().as_ref(arena)
                     }
 
-                    if range_count < CAPAS[t_index][i] {
+                    if range_count < CAPACITIES[t_index][i] {
                         // Range found, relabel
                         let gap = range_size / range_count;
                         let mut rem = range_size % range_count; // note: the reminder is spread out

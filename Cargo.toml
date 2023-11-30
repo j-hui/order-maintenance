@@ -11,6 +11,7 @@ repository = "https://github.com/j-hui/order-maintenance"
 [dependencies]
 slab = "0.4.9"
 quickcheck = "1.0.3"
+order_maintenance_macros = { version = "*", path = "./order_maintenance_macros" }
 
 [dev-dependencies]
 rand = "0.8.5"
@@ -21,3 +22,6 @@ flamegraph = "0.6.4"
 [[bench]]
 name = "bench"
 harness = false
+
+[workspace]
+members = [ "order_maintenance_macros" ]

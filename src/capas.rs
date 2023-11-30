@@ -1,4 +1,6 @@
 // The capacities are computed externally as floor(2^i/T^i) for i in [0, 63] and T in [1.1, 1.9] with a step of 0.05.
+
+/*
 pub const CAPAS: [[usize; 64]; 17] = [
     // 1.1
     [
@@ -482,6 +484,7 @@ pub const CAPAS: [[usize; 64]; 17] = [
         17, 18, 19, 20, 21, 22, 24, 25,
     ],
 ];
+*/
 
 // macro_rules! compute_capas {
 //     ($start_t:literal, $end_t:literal, $nb_ts:literal) => {{

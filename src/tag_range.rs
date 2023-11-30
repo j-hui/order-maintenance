@@ -76,6 +76,57 @@ impl Priority {
     fn relative(&self) -> Label {
         self.0.label() - self.0.base_label()
     }
+
+    /// Search for how many nodes we need to relabel, and its weight
+    fn check_label_range(&self, arena: &mut Arena) -> (usize, Label) {
+        let this = self.0.this().as_ref(arena);
+        let mut count = 1;
+        let mut prio = this.next().as_ref(arena);
+
+        let mut weight = prio.label() - this.label();
+        while weight != 0 && weight <= count * count {
+            prio = prio.next().as_ref(arena);
+            count += 1;
+            weight = prio.label() - this.label();
+        }
+        (count, weight)
+    }
+
+    fn redistribute_labels(&self, arena: &mut Arena, count: usize, weight: Label) {
+        let this = self.0.this().as_ref(arena);
+
+        // Now, adjust labels of those nodes
+        let mut prio = this.next().as_ref(arena);
+        for k in 1..count {
+            // if weight == 0, then it should actually encode usize::MAX + 1.
+            let weight_k = if weight == 0 {
+                // Since we can't actually represent usize::MAX + 1, we just multiply it by
+                // ((usize::MAX + 1) / 2) AKA (1 << (usize::BITS / 2)), and then multiply by 2.
+                Label::new((k * (1 << (Label::BITS / 2))) * 2)
+            } else {
+                weight * k
+            };
+            prio.set_label(weight_k / count + this.label());
+
+            prio = prio.next().as_ref(arena);
+        }
+    }
+
+    /// Perform relabeling in the arena if necessary.
+    fn relabel(&self, arena: &mut Arena) {
+        // Search for how many nodes we need to relabel, and its weight
+        let (count, weight) = self.check_label_range(arena);
+        if count > 1 {
+            self.redistribute_labels(arena, count, weight);
+        }
+    }
+
+    /// Compute the next label for inserting after `self`.
+    fn next_label(&self, arena: &Arena) -> Label {
+        let this = self.0.this().as_ref(arena);
+        // Compute new priority, which is half-way between this priority and the next
+        this.label() + (this.next().as_ref(arena).label() - this.label()) / 2
+    }
 }
 
 impl PartialOrd for Priority {
@@ -101,47 +152,8 @@ impl MaintainedOrd for Priority {
 
     fn insert(&self) -> Self {
         Self(self.0.insert(|arena| {
-            let this = self.0.this().as_ref(arena);
-
-            // Before we insert anything, we first need to relabel successive priorities in
-            // order to ensure labels are evenly distributed.
-
-            // Search for how many nodes we need to relabel, and its weight
-            let (count, weight) = {
-                let mut count = 1;
-                let mut prio = this.next().as_ref(arena);
-
-                let mut weight = prio.label() - this.label();
-                while weight != 0 && weight <= count * count {
-                    prio = prio.next().as_ref(arena);
-                    count += 1;
-                    weight = prio.label() - this.label();
-                }
-                (count, weight)
-            };
-
-            // Now, adjust labels of those nodes
-            let mut prio = this.next().as_ref(arena);
-            for k in 1..count {
-                // let k: Label = Label::new(k);
-                // if weight == 0, then it should actually encode usize::MAX + 1.
-                let weight_k = if weight == 0 {
-                    // Since we can't actually represent usize::MAX + 1, we just multiply it by
-                    // ((usize::MAX + 1) / 2) AKA (1 << (usize::BITS / 2)), and then multiply by 2.
-
-                    Label::new((k * (1 << (Label::BITS / 2))) * 2)
-
-                    // k.wrapping_mul(1 << (usize::BITS / 2)).wrapping_mul(2)
-                } else {
-                    weight * k
-                };
-                prio.set_label(weight_k / count + this.label());
-
-                prio = prio.next().as_ref(arena);
-            }
-
-            // Compute new priority, which is half-way between this priority and the next
-            this.label() + (this.next().as_ref(arena).label() - this.label()) / 2
+            self.relabel(arena);
+            self.next_label(arena)
         }))
     }
 }

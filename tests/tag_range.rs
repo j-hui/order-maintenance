@@ -22,6 +22,8 @@ delegate_tests! {
     fn compare_two();
     fn insertion();
     fn transitive();
+    fn drop_first();
+    fn drop_middle();
     fn insert_some_begin();
     fn insert_some_end();
     fn insert_some_flipflop();

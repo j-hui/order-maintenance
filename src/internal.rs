@@ -274,46 +274,94 @@ impl PartialEq for PriorityRef {
 
 impl Eq for PriorityRef {}
 
-/*
-TODO: recover this
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn no_leak() {
-        // TODO
-        // let a = {
-        //     let a = Arena::new();
-        //     let p1 = PriorityRef::new(a, 0);
-        //     let _p2 = p1.insert();
-        //     let _p3 = p1.insert();
-        //     p1.0.arena.clone()
-        // };
-        // assert!(a.borrow().priorities.len() == 1);
+    fn assert_priority_count(a: &Arena, n: usize) {
+        assert_eq!(a.priorities.len(), n);
+        assert_eq!(a.total, n);
     }
 
-    // #[test]
-    // fn can_clone() {
-    //     let a = {
-    //         let p1 = Priority::new();
-    //         let p2 = INSERT_FN(&p1);
-    //         let p3 = INSERT_FN(&p2);
-    //
-    //         {
-    //             let p1 = p1.clone();
-    //
-    //             assert!(p1 < p2);
-    //             assert!(p2 < p3);
-    //             assert!(p1 < p3);
-    //         }
-    //
-    //         assert!(p1 < p2);
-    //         assert!(p2 < p3);
-    //         assert!(p1 < p3);
-    //         p1.arena.clone()
-    //     };
-    //     assert!(a.borrow().priorities.len() == 1);
-    // }
+    fn assert_ref_count(p: &PriorityRef, n: usize) {
+        let c = *p.this.as_ref(&p.arena.borrow()).ref_count.borrow();
+        assert_eq!(c, n);
+    }
+
+    fn new_priority_from_base() -> PriorityRef {
+        let a = Arena::new();
+        let k = a.base();
+        PriorityRef::new(a, k)
+    }
+
+    fn new_priority_after_base(label: Label) -> PriorityRef {
+        let mut a = Arena::new();
+        let k = a.insert_after(label, a.base());
+        PriorityRef::new(a, k)
+    }
+
+    #[test]
+    fn empty_arena() {
+        let a = Arena::new();
+        assert_priority_count(&a, 1);
+    }
+
+    #[test]
+    fn priority_from_base() {
+        let p = new_priority_from_base();
+        assert_priority_count(&p.arena.borrow(), 1);
+    }
+
+    #[test]
+    fn priority_after_base() {
+        let p = new_priority_after_base(Label::MAX / 2);
+        assert_priority_count(&p.arena.borrow(), 2);
+    }
+
+    #[test]
+    fn drop_base() {
+        let a = {
+            let p1 = new_priority_from_base();
+            {
+                let _p2 = p1.insert(|_| Label::new(2));
+                assert_priority_count(&p1.arena.borrow(), 2);
+            }
+            assert_priority_count(&p1.arena.borrow(), 1);
+            p1.arena.clone()
+        };
+        assert_priority_count(&a.borrow(), 0);
+    }
+
+    #[test]
+    fn drop_one() {
+        let p1 = new_priority_after_base(Label::new(1));
+        {
+            let _p2 = p1.insert(|_| Label::new(2));
+            assert_priority_count(&p1.arena.borrow(), 3);
+        }
+        assert_priority_count(&p1.arena.borrow(), 2);
+    }
+
+    #[test]
+    fn clone_priority_ref() {
+        let p1 = new_priority_after_base(Label::new(1));
+        {
+            let p1_ = p1.clone();
+            assert_eq!(p1, p1_);
+            assert_priority_count(&p1.arena.borrow(), 2);
+            assert_ref_count(&p1, 2);
+            assert_ref_count(&p1_, 2);
+        }
+        assert_priority_count(&p1.arena.borrow(), 2);
+        assert_ref_count(&p1, 1);
+        {
+            let p1_ = p1.clone();
+            assert_eq!(p1, p1_);
+            assert_priority_count(&p1.arena.borrow(), 2);
+            assert_ref_count(&p1, 2);
+            assert_ref_count(&p1_, 2);
+        }
+        assert_priority_count(&p1.arena.borrow(), 2);
+        assert_ref_count(&p1, 1);
+    }
 }
-*/

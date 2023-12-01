@@ -87,6 +87,47 @@ pub fn drop_middle<Priority: MaintainedOrd>() {
     assert!(p1 < p3);
 }
 
+pub fn drop_some<Priority: MaintainedOrd>() {
+    let mut ps = vec![Priority::new()];
+    for i in 0..SOME {
+        let p = ps[i].insert();
+        ps.push(p);
+    }
+
+    // drop all elements
+    while !ps.is_empty() {
+        ps.pop();
+    }
+}
+
+pub fn drop_random<Priority: MaintainedOrd>() {
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    let mut rng = StdRng::seed_from_u64(42);
+    let mut ps = vec![Priority::new()];
+    for i in 0..MANY {
+        let p = ps[i].insert();
+        ps.push(p);
+    }
+
+    for _ in 0..10 {
+        // drop SOME
+        for _ in 0..SOME {
+            let i = rng.gen_range(0..ps.len());
+            ps.remove(i);
+        }
+        // insert SOME
+        for _ in 0..SOME {
+            let i = rng.gen_range(0..ps.len());
+            let p = ps[i].insert();
+            ps.insert(i + 1, p);
+        }
+    }
+
+    for i in 0..ps.len() - 1 {
+        assert!(ps[i] < ps[i + 1], "ps[{}] < ps[{}]", i, i + 1);
+    }
+}
+
 pub fn insert_some_begin<Priority: MaintainedOrd>() {
     do_insert::<Priority>(SOME, |_| 0);
     do_insert_begin::<Priority>(SOME);

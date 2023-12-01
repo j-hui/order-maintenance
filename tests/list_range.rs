@@ -24,6 +24,8 @@ delegate_tests! {
     fn transitive();
     fn drop_first();
     fn drop_middle();
+    fn drop_some();
+    fn drop_random();
     fn insert_some_begin();
     fn insert_some_end();
     fn insert_some_flipflop();

@@ -10,7 +10,7 @@ pub enum Decision {
 }
 
 #[derive(Clone, Debug)]
-pub struct Decisions(pub Vec<Decision>);
+pub struct Decisions(Vec<Decision>);
 
 impl Decisions {
     fn generate_priorities<Priority: MaintainedOrd>(&self) -> Vec<Priority> {

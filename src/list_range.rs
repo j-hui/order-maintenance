@@ -66,44 +66,42 @@ impl Priority {
 
     /// Perform relabeling in the arena.
     fn do_relabel(&self, arena: &mut Arena) {
-        // Relabeling
         let this = self.0.this().as_ref(arena);
 
         let t_index = self.threshold_index(arena.total());
 
         let mut i = 0;
-        // let mut t_i = 1.; // idea: precompute list of t_is
         let mut range_size = 1;
         let mut range_count = 1;
         let mut internal_node_tag = this.label();
 
-        // the subrange is [min_lab, max_lab)
+        // the subrange is [min_lab, max_lab] (inclusive)
         let mut min_lab = internal_node_tag;
-        let mut max_lab = internal_node_tag + 1;
+        let mut max_lab = internal_node_tag;
 
         let mut begin = this;
-        let mut end = this.next().as_ref(arena);
+        let mut end = this;
 
         // The density threshold is 1/T^i
         // So we want to find the smallest subrange so that count/2^i <= 1/T^i
         // or count <= (2/T)^i = CAPA[t_index][i]
 
         while range_size < usize::MAX {
-            while begin.label() >= min_lab {
-                range_count += 1;
-                if begin.label() == Arena::BASE {
-                    begin = begin.prev().as_ref(arena);
+            loop {
+                let new_begin = begin.prev().as_ref(arena);
+                if new_begin.label() < min_lab || new_begin.label() >= begin.label() {
                     break;
                 }
-                begin = begin.prev().as_ref(arena);
-            }
-            // backtrack one step (this bound is inclusive)
-            begin = begin.next().as_ref(arena);
-            range_count -= 1;
-
-            while end.label() < max_lab && end.label() != Arena::BASE {
                 range_count += 1;
-                end = end.next().as_ref(arena)
+                begin = new_begin;
+            }
+            loop {
+                let new_end = end.next().as_ref(arena);
+                if new_end.label() > max_lab || new_end.label() <= end.label() {
+                    break;
+                }
+                range_count += 1;
+                end = new_end;
             }
 
             if range_count < CAPACITIES[t_index][i] {
@@ -112,18 +110,16 @@ impl Priority {
                 let mut rem = range_size % range_count; // note: the reminder is spread out
                 let mut new_label = min_lab;
 
-                loop {
+                while begin.label() != end.label() {
                     begin.set_label(new_label);
                     begin = begin.next().as_ref(arena);
-                    if begin.label() == end.label() {
-                        break;
-                    }
                     new_label += gap;
                     if rem > 0 {
                         new_label += 1;
                         rem -= 1;
                     }
                 }
+                end.set_label(new_label); // the end is part of the range
 
                 break;
             } else {
@@ -131,7 +127,6 @@ impl Priority {
                     panic!("Too many priorities were inserted, the root is overflowing!");
                 }
                 i += 1;
-                // t_i *= Priority::T;
                 range_size *= 2;
                 internal_node_tag >>= 1;
                 min_lab = internal_node_tag << i;
@@ -144,7 +139,7 @@ impl Priority {
     fn relabel(&self, arena: &mut Arena) {
         let this = self.0.this().as_ref(arena);
         let next = this.next().as_ref(arena);
-        let next_lab = if next.label() == Arena::BASE {
+        let next_lab = if next.label() <= this.label() {
             Label::MAX
         } else {
             next.label()
@@ -159,7 +154,7 @@ impl Priority {
     fn next_label(&self, arena: &Arena) -> Label {
         let this = self.0.this().as_ref(arena);
         let next = this.next().as_ref(arena);
-        let next_lab = if next.label() == Arena::BASE {
+        let next_lab = if next.label() <= this.label() {
             Label::MAX
         } else {
             next.label()

@@ -128,8 +128,8 @@ impl Priority {
                 i += 1;
                 range_size *= 2;
                 internal_node_tag >>= 1;
-                min_lab = internal_node_tag << i;
-                max_lab = (internal_node_tag + 1) << i;
+                min_lab = internal_node_tag << i; // add i zeros
+                max_lab = !(!internal_node_tag << i) // add i ones
             }
         }
     }

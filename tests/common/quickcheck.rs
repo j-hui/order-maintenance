@@ -29,47 +29,6 @@ impl<Priority: MaintainedOrd> From<Decisions> for Vec<Priority> {
     }
 }
 
-// impl Debug for Decisions {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         let mut res_str = String::new();
-//         res_str.push_str("\n\n");
-//         for d in self.0.iter() {
-//             match d {
-//                 Decision::Insert(i) => f.write_str(format!("I({}), ", i).as_str())?,
-//                 Decision::Drop(i) => f.write_str(format!("D({}), ", i).as_str())?,
-//             }
-//         }
-//         Ok(())
-//         // if !self.0.is_empty() {
-//         //     res_str.push_str("\n\nBefore last: ");
-//         //     let vec = Vec::<Priority>::from(Decisions(self.0.clone()[..self.0.len() - 1].to_vec()));
-//         //     if let Some(p0) = vec.first() {
-//         //         p0.arena_mut(|a| {
-//         //             for (_, p) in vec.iter().enumerate() {
-//         //                 res_str.push_str(a.get(p.this).label().to_string().as_str());
-//         //                 res_str.push_str(", ");
-//         //             }
-//         //         });
-//         //     }
-//         // }
-//         // res_str.push_str("\n\nAfter last: ");
-//         // let vec = Vec::<Priority>::from(self.clone());
-//         // if let Some(p0) = vec.first() {
-//         //     p0.arena_mut(|a| {
-//         //         for (_, p) in vec.iter().enumerate() {
-//         //             res_str.push_str(a.get(p.this).label().to_string().as_str());
-//         //             res_str.push_str(", ");
-//         //         }
-//         //     });
-//         // }
-//         // res_str.push_str("\n\n");
-//         // res_str
-//         //     .push_str(format!("Decisions: {} - Priorities: {}", self.0.len(), vec.len()).as_str());
-//         // res_str.push_str("\n\n");
-//         // write!(f, "{}", res_str)
-//     }
-// }
-
 impl Arbitrary for Decisions {
     fn arbitrary(g: &mut Gen) -> Self {
         let mut ds = vec![];
@@ -108,7 +67,7 @@ pub fn qc_ordered_common<Priority: MaintainedOrd>(ds: Decisions) -> bool {
         // check contiguous pairs only
         for i in 0..ps.len() - 1 {
             if ps[i] >= ps[i + 1] {
-                println!("ps[{}] >= ps[{}]", i, i + 1);
+                println!("Error: ps[{}] >= ps[{}]", i, i + 1);
                 return false;
             }
         }

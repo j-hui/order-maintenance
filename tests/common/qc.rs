@@ -12,10 +12,10 @@ pub enum Decision {
 #[derive(Clone, Debug)]
 pub struct Decisions(pub Vec<Decision>);
 
-impl<Priority: MaintainedOrd> From<Decisions> for Vec<Priority> {
-    fn from(ds: Decisions) -> Self {
+impl Decisions {
+    fn generate_priorities<Priority: MaintainedOrd>(&self) -> Vec<Priority> {
         let mut ps = vec![Priority::new()];
-        for &d in ds.0.iter() {
+        for &d in self.0.iter() {
             match d {
                 Decision::Insert(i) => {
                     ps.insert(i + 1, ps[i].insert());
@@ -61,8 +61,8 @@ impl Arbitrary for Decisions {
     }
 }
 
-pub fn qc_ordered_common<Priority: MaintainedOrd>(ds: Decisions) -> bool {
-    let ps: Vec<Priority> = ds.clone().into();
+pub fn run_and_check<Priority: MaintainedOrd>(ds: Decisions) -> bool {
+    let ps: Vec<Priority> = ds.generate_priorities();
     if !ps.is_empty() {
         // check contiguous pairs only
         for i in 0..ps.len() - 1 {

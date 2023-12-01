@@ -3,7 +3,7 @@
 //! Delegates to tests defined in the `common` module.
 
 mod common;
-use common::quickcheck::{qc_ordered_common, Decisions};
+use common::qc;
 use order_maintenance::list_range::Priority;
 use quickcheck_macros::quickcheck;
 
@@ -36,6 +36,6 @@ delegate_tests! {
 }
 
 #[quickcheck]
-fn qc_ordered(ds: Decisions) -> bool {
-    qc_ordered_common::<Priority>(ds)
+fn qc_ordered(ds: qc::Decisions) -> bool {
+    qc::run_and_check::<Priority>(ds)
 }

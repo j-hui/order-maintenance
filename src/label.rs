@@ -1,4 +1,4 @@
-use std::ops::{Shl, Shr};
+use std::ops::{Not, Shl, Shr};
 
 /// Label (i.e., the "tag") that is used to compare priorities.
 ///
@@ -84,4 +84,11 @@ impl_label_ops! {
     impl mut AddAssign<usize> { use wrapping_add in add_assign }
     impl mut ShlAssign<usize> { use shl in shl_assign }
     impl mut ShrAssign<usize> { use shr in shr_assign }
+}
+
+impl Not for Label {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
 }

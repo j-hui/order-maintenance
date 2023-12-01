@@ -3,7 +3,7 @@
 //! Delegates to tests defined in the `common` module.
 
 mod common;
-use common::quickcheck::Decisions;
+use common::quickcheck::{qc_ordered_common, Decisions};
 use order_maintenance::tag_range::Priority;
 use quickcheck_macros::quickcheck;
 
@@ -37,15 +37,5 @@ delegate_tests! {
 
 #[quickcheck]
 fn qc_ordered(ds: Decisions) -> bool {
-    let ps: Vec<Priority> = ds.clone().into();
-    if !ps.is_empty() {
-        // check contiguous pairs only
-        for i in 0..ps.len() - 1 {
-            if ps[i] >= ps[i + 1] {
-                println!("ps[{}] >= ps[{}]", i, i + 1);
-                return false;
-            }
-        }
-    }
-    true
+    qc_ordered_common::<Priority>(ds)
 }

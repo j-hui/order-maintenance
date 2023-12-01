@@ -101,3 +101,17 @@ impl Arbitrary for Decisions {
         )
     }
 }
+
+pub fn qc_ordered_common<Priority: MaintainedOrd>(ds: Decisions) -> bool {
+    let ps: Vec<Priority> = ds.clone().into();
+    if !ps.is_empty() {
+        // check contiguous pairs only
+        for i in 0..ps.len() - 1 {
+            if ps[i] >= ps[i + 1] {
+                println!("ps[{}] >= ps[{}]", i, i + 1);
+                return false;
+            }
+        }
+    }
+    true
+}

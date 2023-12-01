@@ -67,6 +67,26 @@ pub fn transitive<Priority: MaintainedOrd>() {
     assert!(p1 < p3);
 }
 
+pub fn drop_first<Priority: MaintainedOrd>() {
+    let p1 = Priority::new().insert();
+    let p2 = p1.insert();
+
+    assert!(p1 < p2);
+}
+
+pub fn drop_middle<Priority: MaintainedOrd>() {
+    let p1 = Priority::new();
+    let p3 = {
+        let p2 = p1.insert();
+        p2.insert()
+    };
+    let p2 = p1.insert();
+
+    assert!(p1 < p2);
+    assert!(p2 < p3);
+    assert!(p1 < p3);
+}
+
 pub fn insert_some_begin<Priority: MaintainedOrd>() {
     do_insert::<Priority>(SOME, |_| 0);
     do_insert_begin::<Priority>(SOME);

@@ -152,14 +152,15 @@ impl Priority {
     /// Compute the next label for inserting after `self`.
     fn next_label(&self, arena: &Arena) -> Label {
         let this = self.0.this().as_ref(arena);
-        let next = this.next().as_ref(arena);
-        let next_lab = if next.label() <= this.label() {
+        let this_lab = this.label();
+        let mut next_lab = this.next().as_ref(arena).label();
+        next_lab = if next_lab <= this_lab {
             Label::MAX
         } else {
-            next.label()
+            next_lab
         };
 
-        (this.label() & next_lab) + ((this.label() ^ next_lab) >> 1)
+        this_lab + (next_lab - this_lab) / 2
     }
 }
 

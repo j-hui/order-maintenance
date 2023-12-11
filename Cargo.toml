@@ -20,7 +20,11 @@ quickcheck_macros = "1.0.0"
 flamegraph = "0.6.4"
 
 [[bench]]
-name = "bench"
+name = "tag_range"
+harness = false
+
+[[bench]]
+name = "list_range"
 harness = false
 
 [workspace]

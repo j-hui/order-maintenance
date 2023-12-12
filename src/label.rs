@@ -14,6 +14,12 @@ impl Label {
     pub(crate) const BITS: usize = usize::BITS as usize;
 }
 
+impl From<Label> for u128 {
+    fn from(l: Label) -> Self {
+        l.0 as u128
+    }
+}
+
 impl PartialEq<usize> for Label {
     fn eq(&self, other: &usize) -> bool {
         self.0.eq(other)

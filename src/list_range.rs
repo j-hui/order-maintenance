@@ -99,14 +99,14 @@ impl Priority {
         let mut prio = this.next().as_ref(arena);
         for k in 1..count {
             // if weight == 0, then it should actually encode usize::MAX + 1.
-            let weight_k = if weight == 0 {
+            let weight_k: u128 = if weight == 0 {
                 // Since we can't actually represent usize::MAX + 1, we just multiply it by
                 // ((usize::MAX + 1) / 2) AKA (1 << (usize::BITS / 2)), and then multiply by 2.
-                Label::new((k * (1 << (Label::BITS / 2))) * 2)
+                (k as u128 * (1 << (Label::BITS / 2))) * 2
             } else {
-                weight * k
+                (k as u128) * u128::from(weight)
             };
-            prio.set_label(weight_k / count + this.label());
+            prio.set_label(this.label() + (weight_k / count as u128) as usize);
 
             prio = prio.next().as_ref(arena);
         }

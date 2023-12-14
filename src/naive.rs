@@ -1,6 +1,19 @@
-// use crate::internal::{Arena, Label, PriorityRef};
 pub use crate::MaintainedOrd;
-use std::{cell::Cell, cmp::Ordering};
+use std::{cell::Cell, cmp::Ordering, rc::Rc};
+
+/// A UniquePriority that can be cloned.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub struct Priority(Rc<UniquePriority>);
+
+impl MaintainedOrd for Priority {
+    fn new() -> Self {
+        Self(Rc::new(UniquePriority::new()))
+    }
+
+    fn insert(&self) -> Self {
+        Self(Rc::new(self.0.insert()))
+    }
+}
 
 /// A UniquePriority is a rational number `label / (2 ** depth)`.
 ///

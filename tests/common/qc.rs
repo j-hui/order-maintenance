@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use order_maintenance::MaintainedOrd;
 use quickcheck::{Arbitrary, Gen};
 use std::fmt::Debug;

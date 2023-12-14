@@ -11,6 +11,7 @@ repository = "https://github.com/j-hui/order-maintenance"
 [dependencies]
 slab = "0.4.9"
 order_maintenance_macros = { version = "*", path = "./order_maintenance_macros" }
+num = { version = "0.4.1" }
 
 [dev-dependencies]
 rand = "0.8.5"

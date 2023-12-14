@@ -2,12 +2,12 @@
 //!
 //! See documentation for [`Priority`].
 
+pub mod big;
 mod internal;
 mod label;
 pub mod list_range;
-pub mod tag_range;
 pub mod naive;
-pub mod big;
+pub mod tag_range;
 
 /// TODO: doc
 pub trait MaintainedOrd: PartialEq + PartialOrd {
